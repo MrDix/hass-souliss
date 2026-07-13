@@ -13,7 +13,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import SoulissConfigEntry
-from .entity import SoulissSlotEntity
+from .entity import SoulissSlotEntity, async_setup_slot_entities
+from .protocol import Node, Slot
 from .protocol import const as pconst
 
 
@@ -23,12 +24,13 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     gateway = entry.runtime_data
-    async_add_entities(
-        SoulissCover(gateway, node, slot, entry.entry_id)
-        for node in gateway.nodes.values()
-        for slot in node.slots.values()
-        if slot.typical in (pconst.T21, pconst.T22)
-    )
+
+    def _factory(node: Node, slot: Slot) -> SoulissCover | None:
+        if slot.typical not in (pconst.T21, pconst.T22):
+            return None
+        return SoulissCover(gateway, node, slot, entry.entry_id)
+
+    async_setup_slot_entities(entry, async_add_entities, _factory)
 
 
 class SoulissCover(SoulissSlotEntity, CoverEntity):

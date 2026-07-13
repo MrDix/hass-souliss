@@ -2,12 +2,54 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import TYPE_CHECKING
+
 from homeassistant.core import callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import DOMAIN
 from .protocol import Node, Slot, SoulissGateway
+
+if TYPE_CHECKING:
+    from . import SoulissConfigEntry
+
+SlotEntityFactory = Callable[[Node, Slot], Entity | None]
+
+
+@callback
+def async_setup_slot_entities(
+    entry: SoulissConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+    factory: SlotEntityFactory,
+) -> None:
+    """Add entities for the known slots and for slots discovered later.
+
+    Peer nodes can report their typicals after connect() (e.g. while they are
+    still booting); the gateway fires a discovery callback when that happens.
+    """
+    gateway = entry.runtime_data
+    seen: set[tuple[int, int]] = set()
+
+    @callback
+    def _add_node(node: Node) -> None:
+        new_entities = []
+        for slot in node.slots.values():
+            key = (node.index, slot.index)
+            if key in seen:
+                continue
+            seen.add(key)
+            entity = factory(node, slot)
+            if entity is not None:
+                new_entities.append(entity)
+        if new_entities:
+            async_add_entities(new_entities)
+
+    for node in gateway.nodes.values():
+        _add_node(node)
+    entry.async_on_unload(gateway.register_discovery_callback(_add_node))
 
 
 class SoulissNodeEntity(Entity):

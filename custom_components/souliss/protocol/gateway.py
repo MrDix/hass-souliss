@@ -34,6 +34,7 @@ PING_INTERVAL = 30.0
 MAX_PING_MISSES = 3
 
 AvailabilityCallback = Callable[[bool], None]
+DiscoveryCallback = Callable[[Node], None]
 
 
 class SoulissError(Exception):
@@ -86,11 +87,13 @@ class SoulissGateway:
 
         self._transport: asyncio.DatagramTransport | None = None
         self._maintenance_task: asyncio.Task | None = None
+        self._poll_task: asyncio.Task | None = None
         self._send_lock = asyncio.Lock()
         self._last_send = 0.0
         self._ping_misses = 0
         self._waiters: dict[int, list[asyncio.Future[MacacoFrame]]] = {}
         self._availability_callbacks: list[AvailabilityCallback] = []
+        self._discovery_callbacks: list[DiscoveryCallback] = []
 
     # ---------------------------------------------------------------- setup
 
@@ -159,6 +162,9 @@ class SoulissGateway:
         if self._maintenance_task:
             self._maintenance_task.cancel()
             self._maintenance_task = None
+        if self._poll_task:
+            self._poll_task.cancel()
+            self._poll_task = None
         if self._transport:
             self._transport.close()
             self._transport = None
@@ -187,6 +193,18 @@ class SoulissGateway:
         def _unregister() -> None:
             if callback in self._availability_callbacks:
                 self._availability_callbacks.remove(callback)
+
+        return _unregister
+
+    def register_discovery_callback(
+        self, callback: DiscoveryCallback
+    ) -> Callable[[], None]:
+        """Subscribe to nodes whose typicals arrive after connect()."""
+        self._discovery_callbacks.append(callback)
+
+        def _unregister() -> None:
+            if callback in self._discovery_callbacks:
+                self._discovery_callbacks.remove(callback)
 
         return _unregister
 
@@ -272,9 +290,11 @@ class SoulissGateway:
             node.apply_state(frame.payload)
 
     def _handle_typicals(self, frame: MacacoFrame) -> None:
+        discovered: list[Node] = []
         for chunk_index in range(0, len(frame.payload), self.slots_per_node):
             node_index = frame.startoffset + chunk_index // self.slots_per_node
             node = self.nodes.setdefault(node_index, Node(node_index))
+            was_empty = not node.slots
             typicals = frame.payload[chunk_index : chunk_index + self.slots_per_node]
             if node.apply_typicals(typicals):
                 _LOGGER.debug(
@@ -282,6 +302,23 @@ class SoulissGateway:
                     node_index,
                     {s.index: hex(s.typical) for s in node.slots.values()},
                 )
+                if was_empty and node.slots:
+                    discovered.append(node)
+        if discovered and self.connected:
+            for node in discovered:
+                _LOGGER.info("Node %d reported its typicals late", node.index)
+                for callback in list(self._discovery_callbacks):
+                    callback(node)
+            # fetch the current OUT state of the freshly discovered slots
+            self._poll_task = asyncio.get_running_loop().create_task(
+                self._poll_quietly()
+            )
+
+    async def _poll_quietly(self) -> None:
+        try:
+            await self.poll()
+        except SoulissError as err:
+            _LOGGER.debug("State poll after late discovery failed: %s", err)
 
     def _handle_health(self, frame: MacacoFrame) -> None:
         for offset, health in enumerate(frame.payload):
@@ -307,6 +344,14 @@ class SoulissGateway:
                 self._ping_misses += 1
                 if self._ping_misses >= MAX_PING_MISSES:
                     self._set_connected(False)
+                continue
+            try:
+                # nodes that never reported their typicals (e.g. they were
+                # still booting when we connected): keep asking
+                for index, node in self.nodes.items():
+                    if not node.slots:
+                        await self._send(frames.typical_request(1, startoffset=index))
+            except SoulissConnectionError:
                 continue
             now = time.monotonic()
             if now - last_subscribe >= SUBSCRIPTION_REFRESH:

@@ -178,6 +178,31 @@ async def test_connect_fails_without_gateway(
     assert not gateway.connected
 
 
+async def test_late_typicals_fire_discovery(client: SoulissGateway) -> None:
+    # simulate a node that was silent during connect(): no slots known yet
+    node1_typ = bytes(client.nodes[1].slots[0].typical for _ in range(1)) + bytes(23)
+    client.nodes[1].slots = {}
+    discovered = []
+    client.register_discovery_callback(discovered.append)
+
+    frame = frames.build_vnet(
+        client.source_address,
+        GW_VNET_ADDRESS,
+        frames.build_macaco(
+            const.FC_TYPICAL_ANS, startoffset=1, numberof=24, payload=node1_typ
+        ),
+    )
+    client._handle_datagram(frame, ("127.0.0.1", 9999))
+
+    assert [node.index for node in discovered] == [1]
+    assert client.nodes[1].slots[0].typical == const.T11
+    await asyncio.sleep(0.1)  # let the follow-up state poll task finish
+
+    # an unchanged repeat must not fire the callback again
+    client._handle_datagram(frame, ("127.0.0.1", 9999))
+    assert len(discovered) == 1
+
+
 async def test_foreign_source_is_ignored(client: SoulissGateway) -> None:
     # a frame with a foreign vNet source must not reach the model
     frame = frames.build_vnet(

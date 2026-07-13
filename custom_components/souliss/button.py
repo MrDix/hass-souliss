@@ -8,8 +8,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import SoulissConfigEntry
-from .entity import SoulissSlotEntity
+from .entity import SoulissSlotEntity, async_setup_slot_entities
 from .helpers import slot_domain
+from .protocol import Node, Slot
 from .protocol import const as pconst
 
 
@@ -19,12 +20,13 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     gateway = entry.runtime_data
-    async_add_entities(
-        SoulissButton(gateway, node, slot, entry.entry_id)
-        for node in gateway.nodes.values()
-        for slot in node.slots.values()
-        if slot_domain(entry, node.index, slot) == "button"
-    )
+
+    def _factory(node: Node, slot: Slot) -> SoulissButton | None:
+        if slot_domain(entry, node.index, slot) != "button":
+            return None
+        return SoulissButton(gateway, node, slot, entry.entry_id)
+
+    async_setup_slot_entities(entry, async_add_entities, _factory)
 
 
 class SoulissButton(SoulissSlotEntity, ButtonEntity):
