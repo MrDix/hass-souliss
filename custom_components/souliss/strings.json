@@ -29,5 +29,43 @@
       "already_configured": "This gateway is already configured.",
       "reconfigure_successful": "Reconfiguration successful."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Souliss entity-type overrides",
+        "menu_options": {
+          "add_override": "Add or change an override",
+          "remove_override": "Remove overrides"
+        }
+      },
+      "add_override": {
+        "title": "Override the entity type of a slot",
+        "description": "Pick a T1n slot and the entity type it should use in Home Assistant. The integration reloads and replaces the old entity.",
+        "data": {
+          "slot": "Slot",
+          "entity_type": "Entity type"
+        }
+      },
+      "remove_override": {
+        "title": "Remove overrides",
+        "data": {
+          "overrides": "Overrides to remove"
+        }
+      }
+    },
+    "abort": {
+      "not_loaded": "The integration is not loaded. Try again once it is running."
+    }
+  },
+  "selector": {
+    "override_type": {
+      "options": {
+        "switch": "Switch",
+        "light": "Light",
+        "binary_sensor": "Binary sensor (motion)",
+        "button": "Button (sends a single ON command)"
+      }
+    }
   }
 }

@@ -18,17 +18,22 @@ Early development. Implemented:
 
 | Souliss typical | Home Assistant entity |
 |---|---|
-| T11 on/off output | `switch` |
-| T12 on/off with AUTO mode | `light` (AUTO mode as attribute) |
+| T11 on/off output | `switch` (overridable) |
+| T12 on/off with AUTO mode | `light` (AUTO mode as attribute, overridable) |
 | T21/T22 motorized (shutter) | `cover` (open/close/stop) |
 | T41 anti-theft main | `alarm_control_panel` |
 | T51-T58 analog input | `sensor` (temperature, humidity, lux, V, A, W, hPa) |
 | T61-T68 analog setpoint | `number` |
 | node health | diagnostic `sensor` per node |
 
-Planned: per-slot entity type overrides (e.g. a T11 motion input as `binary_sensor`,
-a T12 socket as `switch`), T16/T19 dimmable/RGB lights, T31 climate, action-message
-events, gateway discovery.
+Per-slot entity-type overrides: the integration cannot know what is wired to a T1n
+slot, so the *Configure* dialog of the hub entry lets you map any T11/T12 slot to
+`switch`, `light`, `binary_sensor` (motion, read-only) or `button` (single ON
+command, e.g. a node reboot input). The integration reloads and replaces the
+entity; registry customizations of the replaced entity are lost.
+
+Planned: T16/T19 dimmable/RGB lights, T31 climate, action-message events, gateway
+discovery.
 
 ## Installation
 

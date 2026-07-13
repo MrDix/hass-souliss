@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import re
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from .const import CONF_LOCAL_PORT, CONF_NODE_INDEX, CONF_USER_INDEX, DOMAIN, PLATFORMS
+from .helpers import OVERRIDABLE_DOMAINS, slot_domain
 from .protocol import SoulissError, SoulissGateway
 from .protocol.const import DEFAULT_LOCAL_PORT, DEFAULT_NODE_INDEX, DEFAULT_USER_INDEX
 
@@ -42,6 +46,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: SoulissConfigEntry) -> b
         model="Gateway",
     )
 
+    _async_remove_stale_entities(hass, entry, gateway)
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
@@ -49,3 +56,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: SoulissConfigEntry) -> b
 async def async_unload_entry(hass: HomeAssistant, entry: SoulissConfigEntry) -> bool:
     """Unload the config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def _async_update_listener(hass: HomeAssistant, entry: SoulissConfigEntry) -> None:
+    """Reload the entry when the slot overrides change."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
+@callback
+def _async_remove_stale_entities(
+    hass: HomeAssistant, entry: SoulissConfigEntry, gateway: SoulissGateway
+) -> None:
+    """Drop registry entries whose platform no longer matches the overrides."""
+    registry = er.async_get(hass)
+    slot_id = re.compile(rf"{re.escape(entry.entry_id)}-(\d+)-(\d+)")
+    for reg_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if reg_entry.domain not in OVERRIDABLE_DOMAINS:
+            continue
+        match = slot_id.fullmatch(reg_entry.unique_id)
+        if match is None:
+            continue
+        node = gateway.nodes.get(int(match[1]))
+        slot = node.slots.get(int(match[2])) if node else None
+        if slot is not None and slot_domain(entry, node.index, slot) != reg_entry.domain:
+            registry.async_remove(reg_entry.entity_id)

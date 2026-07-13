@@ -29,5 +29,43 @@
       "already_configured": "Dieses Gateway ist bereits konfiguriert.",
       "reconfigure_successful": "Neukonfiguration erfolgreich."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Souliss Entity-Typ-Overrides",
+        "menu_options": {
+          "add_override": "Override hinzufügen oder ändern",
+          "remove_override": "Overrides entfernen"
+        }
+      },
+      "add_override": {
+        "title": "Entity-Typ eines Slots überschreiben",
+        "description": "T1n-Slot und gewünschten Entity-Typ wählen. Die Integration lädt neu und ersetzt die alte Entität.",
+        "data": {
+          "slot": "Slot",
+          "entity_type": "Entity-Typ"
+        }
+      },
+      "remove_override": {
+        "title": "Overrides entfernen",
+        "data": {
+          "overrides": "Zu entfernende Overrides"
+        }
+      }
+    },
+    "abort": {
+      "not_loaded": "Die Integration ist nicht geladen. Bitte erneut versuchen, sobald sie läuft."
+    }
+  },
+  "selector": {
+    "override_type": {
+      "options": {
+        "switch": "Schalter",
+        "light": "Licht",
+        "binary_sensor": "Binärsensor (Bewegung)",
+        "button": "Taster (sendet einen einzelnen EIN-Befehl)"
+      }
+    }
   }
 }
