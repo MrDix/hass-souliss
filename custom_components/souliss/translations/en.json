@@ -1,0 +1,33 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to a Souliss gateway",
+        "description": "Enter the IP address of your Souliss gateway node. It listens on UDP port 230.",
+        "data": {
+          "host": "Gateway IP address",
+          "local_port": "Local UDP port",
+          "user_index": "User index (unique per client, 1-100)",
+          "node_index": "Node index (unique per client, 1-254)"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Souliss gateway",
+        "data": {
+          "host": "Gateway IP address",
+          "local_port": "Local UDP port",
+          "user_index": "User index (unique per client, 1-100)",
+          "node_index": "Node index (unique per client, 1-254)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "The gateway did not answer. Check the IP address and that no firewall blocks UDP port 230.",
+      "port_in_use": "The local UDP port is already in use. Pick another one."
+    },
+    "abort": {
+      "already_configured": "This gateway is already configured.",
+      "reconfigure_successful": "Reconfiguration successful."
+    }
+  }
+}
