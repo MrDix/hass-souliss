@@ -44,6 +44,10 @@ class SoulissConnectionError(SoulissError):
     """Gateway did not answer."""
 
 
+class SoulissBindError(SoulissError):
+    """The local UDP port could not be bound."""
+
+
 class _Protocol(asyncio.DatagramProtocol):
     def __init__(self, gateway: SoulissGateway) -> None:
         self._gateway = gateway
@@ -93,10 +97,15 @@ class SoulissGateway:
     async def connect(self) -> None:
         """Bind the socket, enumerate the network and subscribe to updates."""
         loop = asyncio.get_running_loop()
-        self._transport, _ = await loop.create_datagram_endpoint(
-            lambda: _Protocol(self),
-            local_addr=("0.0.0.0", self.local_port),
-        )
+        try:
+            self._transport, _ = await loop.create_datagram_endpoint(
+                lambda: _Protocol(self),
+                local_addr=("0.0.0.0", self.local_port),
+            )
+        except OSError as err:
+            raise SoulissBindError(
+                f"cannot bind local UDP port {self.local_port}: {err}"
+            ) from err
         try:
             await self._enumerate()
             await self._request(frames.subscribe(self.node_count), STATE_ANSWERS[0])
@@ -128,10 +137,14 @@ class SoulissGateway:
         for index in missing:
             try:
                 await self._request(
-                    frames.typical_request(1, startoffset=index), FC_TYPICAL_ANS
+                    frames.typical_request(1, startoffset=index),
+                    FC_TYPICAL_ANS,
+                    retries=1,
                 )
             except SoulissConnectionError:
-                _LOGGER.warning("Node %d did not report its typicals", index)
+                _LOGGER.warning(
+                    "Node %d did not report its typicals (offline?)", index
+                )
 
     async def _wait_for_typicals(self) -> list[int]:
         """Give the gateway time to relay peer typicals; return nodes still empty."""
@@ -197,9 +210,11 @@ class SoulissGateway:
             self._transport.sendto(frame, (self.host, self.port))
             self._last_send = time.monotonic()
 
-    async def _request(self, macaco: bytes, answer_funcode: int) -> MacacoFrame:
+    async def _request(
+        self, macaco: bytes, answer_funcode: int, retries: int = REQUEST_RETRIES
+    ) -> MacacoFrame:
         """Send a request and wait for the matching answer, with retries."""
-        for attempt in range(1, REQUEST_RETRIES + 1):
+        for attempt in range(1, retries + 1):
             future: asyncio.Future[MacacoFrame] = (
                 asyncio.get_running_loop().create_future()
             )
@@ -213,7 +228,7 @@ class SoulissGateway:
                     answer_funcode,
                     self.host,
                     attempt,
-                    REQUEST_RETRIES,
+                    retries,
                 )
             finally:
                 waiters = self._waiters.get(answer_funcode, [])

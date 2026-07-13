@@ -2,28 +2,39 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_HOST
+from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
+)
 
 from .const import CONF_LOCAL_PORT, CONF_NODE_INDEX, CONF_USER_INDEX, DOMAIN
 from .protocol import SoulissError, SoulissGateway
 from .protocol.const import DEFAULT_LOCAL_PORT, DEFAULT_NODE_INDEX, DEFAULT_USER_INDEX
+from .protocol.gateway import SoulissBindError
+
+
+def _int_box(minimum: int, maximum: int) -> vol.All:
+    return vol.All(
+        NumberSelector(
+            NumberSelectorConfig(min=minimum, max=maximum, step=1, mode=NumberSelectorMode.BOX)
+        ),
+        vol.Coerce(int),
+    )
+
 
 STEP_USER_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): str,
-        vol.Required(CONF_LOCAL_PORT, default=DEFAULT_LOCAL_PORT): vol.All(
-            int, vol.Range(min=1024, max=65535)
-        ),
-        vol.Required(CONF_USER_INDEX, default=DEFAULT_USER_INDEX): vol.All(
-            int, vol.Range(min=1, max=100)
-        ),
-        vol.Required(CONF_NODE_INDEX, default=DEFAULT_NODE_INDEX): vol.All(
-            int, vol.Range(min=1, max=254)
-        ),
+        vol.Required(CONF_LOCAL_PORT, default=DEFAULT_LOCAL_PORT): _int_box(1024, 65535),
+        vol.Required(CONF_USER_INDEX, default=DEFAULT_USER_INDEX): _int_box(1, 100),
+        vol.Required(CONF_NODE_INDEX, default=DEFAULT_NODE_INDEX): _int_box(1, 254),
     }
 )
 
@@ -38,12 +49,15 @@ async def _validate(data: dict[str, Any]) -> str | None:
     )
     try:
         await gateway.connect()
+    except SoulissBindError:
+        return "port_in_use"
     except SoulissError:
         return "cannot_connect"
-    except OSError:
-        return "port_in_use"
     finally:
         gateway.close()
+        # let the event loop actually release the UDP socket before
+        # async_setup_entry binds the same port again
+        await asyncio.sleep(0.2)
     return None
 
 
