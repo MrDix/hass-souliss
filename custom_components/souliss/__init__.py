@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 
 from homeassistant.config_entries import ConfigEntry
@@ -55,7 +56,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: SoulissConfigEntry) -> b
 
 async def async_unload_entry(hass: HomeAssistant, entry: SoulissConfigEntry) -> bool:
     """Unload the config entry."""
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unload_ok:
+        entry.runtime_data.close()
+        # let the event loop actually release the UDP socket so an immediate
+        # reload (e.g. after an options change) can bind the same port again
+        await asyncio.sleep(0.2)
+    return unload_ok
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: SoulissConfigEntry) -> None:
