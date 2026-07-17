@@ -26,6 +26,9 @@ DEFAULT_DOMAIN = {
 
 OVERRIDABLE_DOMAINS = ("switch", "light", "binary_sensor", "button")
 
+# effective domains whose T12 slots get a companion mode select
+MODE_SELECT_DOMAINS = ("switch", "light")
+
 
 def override_key(node_index: int, slot_index: int) -> str:
     return f"{node_index}-{slot_index}"

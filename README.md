@@ -19,7 +19,7 @@ Early development. Implemented:
 | Souliss typical | Home Assistant entity |
 |---|---|
 | T11 on/off output | `switch` (overridable) |
-| T12 on/off with AUTO mode | `light` (AUTO mode as attribute, overridable) |
+| T12 on/off with AUTO mode | `light` (AUTO mode as attribute, overridable) plus a disabled-by-default `select` (off/on/auto) |
 | T21/T22 motorized (shutter) | `cover` (open/close/stop) |
 | T41 anti-theft main | `alarm_control_panel` |
 | T51-T58 analog input | `sensor` (temperature, humidity, lux, V, A, W, hPa) |

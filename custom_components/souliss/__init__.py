@@ -13,7 +13,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
 from .const import CONF_LOCAL_PORT, CONF_NODE_INDEX, CONF_USER_INDEX, DOMAIN, PLATFORMS
-from .helpers import OVERRIDABLE_DOMAINS, slot_domain
+from .helpers import MODE_SELECT_DOMAINS, OVERRIDABLE_DOMAINS, slot_domain
 from .protocol import SoulissError, SoulissGateway
 from .protocol.const import DEFAULT_LOCAL_PORT, DEFAULT_NODE_INDEX, DEFAULT_USER_INDEX
 
@@ -77,13 +77,21 @@ def _async_remove_stale_entities(
     """Drop registry entries whose platform no longer matches the overrides."""
     registry = er.async_get(hass)
     slot_id = re.compile(rf"{re.escape(entry.entry_id)}-(\d+)-(\d+)")
+    mode_id = re.compile(rf"{re.escape(entry.entry_id)}-(\d+)-(\d+)-mode")
     for reg_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
-        if reg_entry.domain not in OVERRIDABLE_DOMAINS:
-            continue
-        match = slot_id.fullmatch(reg_entry.unique_id)
-        if match is None:
-            continue
-        node = gateway.nodes.get(int(match[1]))
-        slot = node.slots.get(int(match[2])) if node else None
-        if slot is not None and slot_domain(entry, node.index, slot) != reg_entry.domain:
-            registry.async_remove(reg_entry.entity_id)
+        if reg_entry.domain in OVERRIDABLE_DOMAINS:
+            match = slot_id.fullmatch(reg_entry.unique_id)
+            if match is None:
+                continue
+            node = gateway.nodes.get(int(match[1]))
+            slot = node.slots.get(int(match[2])) if node else None
+            if slot is not None and slot_domain(entry, node.index, slot) != reg_entry.domain:
+                registry.async_remove(reg_entry.entity_id)
+        elif reg_entry.domain == "select":
+            match = mode_id.fullmatch(reg_entry.unique_id)
+            if match is None:
+                continue
+            node = gateway.nodes.get(int(match[1]))
+            slot = node.slots.get(int(match[2])) if node else None
+            if slot is not None and slot_domain(entry, node.index, slot) not in MODE_SELECT_DOMAINS:
+                registry.async_remove(reg_entry.entity_id)

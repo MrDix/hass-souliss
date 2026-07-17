@@ -67,5 +67,17 @@
         "button": "Taster (sendet einen einzelnen EIN-Befehl)"
       }
     }
+  },
+  "entity": {
+    "select": {
+      "t12_mode": {
+        "name": "Slot {slot} Modus",
+        "state": {
+          "off": "Aus",
+          "on": "An",
+          "auto": "Automatik"
+        }
+      }
+    }
   }
 }
