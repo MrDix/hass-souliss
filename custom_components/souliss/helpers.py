@@ -22,7 +22,13 @@ T1N_ON_VALUES = (
 DEFAULT_DOMAIN = {
     pconst.T11: "switch",
     pconst.T12: "light",
+    pconst.T13: "binary_sensor",
+    pconst.T14: "button",
+    pconst.T18: "switch",
 }
+
+# multi-slot light typicals; always lights, not overridable
+NATIVE_LIGHT_TYPICALS = (pconst.T16, pconst.T19)
 
 OVERRIDABLE_DOMAINS = ("switch", "light", "binary_sensor", "button")
 
@@ -36,6 +42,8 @@ def override_key(node_index: int, slot_index: int) -> str:
 
 def slot_domain(entry: ConfigEntry, node_index: int, slot: Slot) -> str | None:
     """Effective HA domain for a T1n slot, or None for other typicals."""
+    if slot.typical in NATIVE_LIGHT_TYPICALS:
+        return "light"
     default = DEFAULT_DOMAIN.get(slot.typical)
     if default is None:
         return None

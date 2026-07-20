@@ -20,20 +20,27 @@ Early development. Implemented:
 |---|---|
 | T11 on/off output | `switch` (overridable) |
 | T12 on/off with AUTO mode | `light` (AUTO mode as attribute, overridable) plus a disabled-by-default `select` (off/on/auto) |
+| T13 digital input | `binary_sensor` (overridable) |
+| T14 pulse output | `button` (overridable) |
+| T16 RGB LED strip | `light` (RGB color, brightness = max channel) |
+| T18 on/off with pulse feedback | `switch` (overridable) |
+| T19 single-channel dimmable LED | `light` (brightness) |
 | T21/T22 motorized (shutter) | `cover` (open/close/stop) |
+| T31 temperature control | `climate` (heat/cool/off, setpoint, fan modes) |
 | T41 anti-theft main | `alarm_control_panel` |
 | T51-T58 analog input | `sensor` (temperature, humidity, lux, V, A, W, hPa) |
 | T61-T68 analog setpoint | `number` |
 | node health | diagnostic `sensor` per node |
 
-Per-slot entity-type overrides: the integration cannot know what is wired to a T1n
-slot, so the *Configure* dialog of the hub entry lets you map any T11/T12 slot to
-`switch`, `light`, `binary_sensor` (motion, read-only) or `button` (single ON
-command, e.g. a node reboot input). The integration reloads and replaces the
-entity; registry customizations of the replaced entity are lost.
+Per-slot entity-type overrides: the integration cannot know what is wired to a
+single-slot T1n typical, so the *Configure* dialog of the hub entry lets you map
+any T11/T12/T13/T14/T18 slot to `switch`, `light`, `binary_sensor` (read-only)
+or `button` (single ON command, e.g. a node reboot input). The integration
+reloads and replaces the entity; registry customizations of the replaced entity
+are lost. T16/T19 are always lights and T31 is always a climate entity.
 
-Planned: T16/T19 dimmable/RGB lights, T31 climate, action-message events, gateway
-discovery.
+Planned: T32 air-conditioner remote, T42 anti-theft peer, T1A 8-bit input,
+action-message events, gateway discovery.
 
 ## Installation
 

@@ -101,13 +101,41 @@ T1N_TOGGLE_CMD = 0x01
 T1N_ON_CMD = 0x02
 T1N_OFF_CMD = 0x04
 T1N_AUTO_CMD = 0x08  # T12 only
+T1N_BRIGHT_UP_CMD = 0x10  # T16/T19 only
+T1N_BRIGHT_DOWN_CMD = 0x20  # T16/T19 only
+T1N_SET_CMD = 0x22  # T16: + R,G,B bytes / T19: + brightness byte
 # T1n states
 T1N_OFF_COIL = 0x00
 T1N_ON_COIL = 0x01
 T1N_ON_FEEDBACK = 0x23
 T1N_OFF_FEEDBACK = 0x24
+T1N_TIMED_ON_COIL = 0xE1
 T1N_AUTO_OFF_COIL = 0xF0
-T1N_AUTO_ON_COIL = 0xF1
+T1N_AUTO_ON_COIL = 0xF1  # doubles as the T19 "good night" fade state
+
+# T3n commands (values sent to the IN slot of a T31)
+T3N_IN_SETPOINT_CMD = 0x01  # setpoint +1 degree
+T3N_OUT_SETPOINT_CMD = 0x02  # setpoint -1 degree
+T3N_AS_MEASURED_CMD = 0x03
+T3N_COOLING_CMD = 0x04
+T3N_HEATING_CMD = 0x05
+T3N_FAN_OFF_CMD = 0x06
+T3N_FAN_LOW_CMD = 0x07
+T3N_FAN_MED_CMD = 0x08
+T3N_FAN_HIGH_CMD = 0x09
+T3N_FAN_AUTO_CMD = 0x0A
+T3N_FAN_MANUAL_CMD = 0x0B
+T3N_SET_TEMP_CMD = 0x0C  # setpoint half-float goes into IN slot+3/+4
+T3N_SHUTDOWN_CMD = 0x0D
+# T3n state bits (first OUT slot of a T31)
+T3N_SYSTEM_ON = 0x01
+T3N_HEATING_ON = 0x02
+T3N_COOLING_ON = 0x04
+T3N_FAN1_ON = 0x08
+T3N_FAN2_ON = 0x10
+T3N_FAN3_ON = 0x20
+T3N_FAN_AUTO_STATE = 0x40
+T3N_COOLING_MODE = 0x80  # set = cooling mode, clear = heating mode
 
 # T2n commands (software commands, as used by UIs)
 T2N_CLOSE_CMD = 0x01

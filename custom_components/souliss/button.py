@@ -10,7 +10,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from . import SoulissConfigEntry
 from .entity import SoulissSlotEntity, async_setup_slot_entities
 from .helpers import slot_domain
-from .protocol import Node, Slot
+from .protocol import Node, Slot, SoulissGateway
 from .protocol import const as pconst
 
 
@@ -30,10 +30,16 @@ async def async_setup_entry(
 
 
 class SoulissButton(SoulissSlotEntity, ButtonEntity):
-    """Sends the T1n ON command once; used for reboot/pulse slots."""
+    """Sends the T1n ON command once (native T14 pulse or reboot override)."""
 
-    _attr_device_class = ButtonDeviceClass.RESTART
-    _attr_entity_category = EntityCategory.CONFIG
+    def __init__(
+        self, gateway: SoulissGateway, node: Node, slot: Slot, entry_id: str
+    ) -> None:
+        super().__init__(gateway, node, slot, entry_id)
+        if slot.typical != pconst.T14:
+            # T11/T12 mapped to a button are reboot/maintenance latches
+            self._attr_device_class = ButtonDeviceClass.RESTART
+            self._attr_entity_category = EntityCategory.CONFIG
 
     async def async_press(self) -> None:
         await self._send_command(pconst.T1N_ON_CMD)
