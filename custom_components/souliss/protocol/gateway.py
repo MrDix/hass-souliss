@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 
 from . import frames
 from .const import (
@@ -43,11 +43,16 @@ DiscoveryCallback = Callable[[Node], None]
 ActionMessageCallback = Callable[[int, int, int, bytes], None]
 
 
-async def discover_gateways(timeout: float = DISCOVERY_TIMEOUT) -> list[str]:
+async def discover_gateways(
+    timeout: float = DISCOVERY_TIMEOUT,
+    broadcast_addresses: Iterable[str] = ("255.255.255.255",),
+) -> list[str]:
     """Broadcast a gateway-discovery probe and return the IPs that answered.
 
     Only FC_DISCOVER_ANS is accepted, so peer nodes (which answer pings but
-    are no gateways) do not show up in the result.
+    are no gateways) do not show up in the result. On multi-homed hosts the
+    limited broadcast only leaves via the default route, so callers should
+    pass the directed broadcast address of every interface as well.
     """
     loop = asyncio.get_running_loop()
     found: list[str] = []
@@ -67,11 +72,14 @@ async def discover_gateways(timeout: float = DISCOVERY_TIMEOUT) -> list[str]:
     try:
         source = ((DEFAULT_USER_INDEX & 0xFF) << 8) | (DEFAULT_NODE_INDEX & 0xFF)
         probe = frames.build_vnet(VNET_ADDR_BROADCAST, source, frames.discover())
+        targets = list(dict.fromkeys(broadcast_addresses)) or ["255.255.255.255"]
         for _ in range(2):
-            transport.sendto(probe, ("255.255.255.255", GATEWAY_PORT))
+            for target in targets:
+                try:
+                    transport.sendto(probe, (target, GATEWAY_PORT))
+                except OSError as err:
+                    _LOGGER.debug("Discovery probe to %s failed: %s", target, err)
             await asyncio.sleep(timeout / 2)
-    except OSError as err:
-        _LOGGER.debug("Gateway discovery broadcast failed: %s", err)
     finally:
         transport.close()
     return found
