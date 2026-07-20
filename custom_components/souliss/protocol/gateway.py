@@ -50,14 +50,18 @@ ActionMessageCallback = Callable[[int, int, int, bytes], None]
 
 async def discover_gateways(
     timeout: float = DISCOVERY_TIMEOUT,
-    broadcast_addresses: Iterable[str] = ("255.255.255.255",),
+    source_ips: Iterable[str] = ("0.0.0.0",),
 ) -> list[str]:
     """Broadcast a gateway-discovery probe and return the IPs that answered.
 
     Only FC_DISCOVER_ANS is accepted, so peer nodes (which answer pings but
-    are no gateways) do not show up in the result. On multi-homed hosts the
-    limited broadcast only leaves via the default route, so callers should
-    pass the directed broadcast address of every interface as well.
+    are no gateways) do not show up in the result.
+
+    The limited broadcast 255.255.255.255 only leaves through the interface
+    of the socket's source address, and W5x00 gateways drop directed subnet
+    broadcasts in hardware — so one socket is bound per source IP and every
+    socket sends the limited broadcast. Multi-homed callers should pass the
+    IPv4 address of each interface.
     """
     loop = asyncio.get_running_loop()
     found: list[str] = []
@@ -71,23 +75,35 @@ async def discover_gateways(
             if frame.funcode == FC_DISCOVER_ANS and addr[0] not in found:
                 found.append(addr[0])
 
-    transport, _ = await loop.create_datagram_endpoint(
-        _DiscoveryProtocol, local_addr=("0.0.0.0", 0), allow_broadcast=True
-    )
+    transports: list[asyncio.DatagramTransport] = []
+    for source_ip in dict.fromkeys(source_ips):
+        try:
+            transport, _ = await loop.create_datagram_endpoint(
+                _DiscoveryProtocol,
+                local_addr=(source_ip, 0),
+                allow_broadcast=True,
+            )
+        except OSError as err:
+            _LOGGER.debug("Cannot bind discovery socket to %s: %s", source_ip, err)
+            continue
+        transports.append(transport)
+    if not transports:
+        return found
+
     try:
         probe = frames.build_vnet(
             VNET_ADDR_BROADCAST, DISCOVERY_SOURCE_ADDRESS, frames.discover()
         )
-        targets = list(dict.fromkeys(broadcast_addresses)) or ["255.255.255.255"]
         for _ in range(2):
-            for target in targets:
+            for transport in transports:
                 try:
-                    transport.sendto(probe, (target, GATEWAY_PORT))
+                    transport.sendto(probe, ("255.255.255.255", GATEWAY_PORT))
                 except OSError as err:
-                    _LOGGER.debug("Discovery probe to %s failed: %s", target, err)
+                    _LOGGER.debug("Discovery probe failed: %s", err)
             await asyncio.sleep(timeout / 2)
     finally:
-        transport.close()
+        for transport in transports:
+            transport.close()
     return found
 
 

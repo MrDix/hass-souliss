@@ -6,7 +6,7 @@ import asyncio
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.components.network import async_get_ipv4_broadcast_addresses
+from homeassistant.components.network import async_get_enabled_source_ips
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
@@ -125,13 +125,14 @@ class SoulissConfigFlow(ConfigFlow, domain=DOMAIN):
             errors["base"] = error
         else:
             # broadcast probe so known gateways can be picked from a list;
-            # include every adapter's directed broadcast (multi-homed hosts)
-            broadcasts = [
+            # probe from every adapter address (multi-homed hosts)
+            source_ips = [
                 str(address)
-                for address in await async_get_ipv4_broadcast_addresses(self.hass)
+                for address in await async_get_enabled_source_ips(self.hass)
+                if address.version == 4 and not address.is_loopback
             ]
             self._discovered = await discover_gateways(
-                broadcast_addresses=broadcasts or ("255.255.255.255",)
+                source_ips=source_ips or ("0.0.0.0",)
             )
         return self.async_show_form(
             step_id="user",
