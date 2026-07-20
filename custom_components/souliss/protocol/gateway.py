@@ -36,6 +36,11 @@ SUBSCRIPTION_REFRESH = 60.0  # must stay below the 240 s gateway limit
 PING_INTERVAL = 30.0
 MAX_PING_MISSES = 3
 DISCOVERY_TIMEOUT = 2.0
+# dedicated user-mode source for discovery probes: the gateway answers a
+# user-mode address at the ip:port it last saw it from, so probing with a
+# live client's address (e.g. the 70/120 defaults) would steal its slot
+# and send the answer to that client instead of us
+DISCOVERY_SOURCE_ADDRESS = (100 << 8) | 254
 
 AvailabilityCallback = Callable[[bool], None]
 DiscoveryCallback = Callable[[Node], None]
@@ -70,8 +75,9 @@ async def discover_gateways(
         _DiscoveryProtocol, local_addr=("0.0.0.0", 0), allow_broadcast=True
     )
     try:
-        source = ((DEFAULT_USER_INDEX & 0xFF) << 8) | (DEFAULT_NODE_INDEX & 0xFF)
-        probe = frames.build_vnet(VNET_ADDR_BROADCAST, source, frames.discover())
+        probe = frames.build_vnet(
+            VNET_ADDR_BROADCAST, DISCOVERY_SOURCE_ADDRESS, frames.discover()
+        )
         targets = list(dict.fromkeys(broadcast_addresses)) or ["255.255.255.255"]
         for _ in range(2):
             for target in targets:
