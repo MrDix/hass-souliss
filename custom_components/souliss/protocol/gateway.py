@@ -14,12 +14,15 @@ from .const import (
     DEFAULT_SLOTS_PER_NODE,
     DEFAULT_USER_INDEX,
     ERROR_CODES,
+    FC_ACTION_MESSAGE,
     FC_DBSTRUCT_ANS,
+    FC_DISCOVER_ANS,
     FC_HEALTH_ANS,
     FC_PING_ANS,
     FC_TYPICAL_ANS,
     GATEWAY_PORT,
     STATE_ANSWERS,
+    VNET_ADDR_BROADCAST,
 )
 from .frames import FrameError, MacacoFrame
 from .models import Node
@@ -32,9 +35,46 @@ SEND_SPACING = 0.03  # the nodes are 8-bit AVRs; do not burst
 SUBSCRIPTION_REFRESH = 60.0  # must stay below the 240 s gateway limit
 PING_INTERVAL = 30.0
 MAX_PING_MISSES = 3
+DISCOVERY_TIMEOUT = 2.0
 
 AvailabilityCallback = Callable[[bool], None]
 DiscoveryCallback = Callable[[Node], None]
+# source vNet address, message id, action id, optional data
+ActionMessageCallback = Callable[[int, int, int, bytes], None]
+
+
+async def discover_gateways(timeout: float = DISCOVERY_TIMEOUT) -> list[str]:
+    """Broadcast a gateway-discovery probe and return the IPs that answered.
+
+    Only FC_DISCOVER_ANS is accepted, so peer nodes (which answer pings but
+    are no gateways) do not show up in the result.
+    """
+    loop = asyncio.get_running_loop()
+    found: list[str] = []
+
+    class _DiscoveryProtocol(asyncio.DatagramProtocol):
+        def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:
+            try:
+                frame = frames.parse_vnet(data)
+            except FrameError:
+                return
+            if frame.funcode == FC_DISCOVER_ANS and addr[0] not in found:
+                found.append(addr[0])
+
+    transport, _ = await loop.create_datagram_endpoint(
+        _DiscoveryProtocol, local_addr=("0.0.0.0", 0), allow_broadcast=True
+    )
+    try:
+        source = ((DEFAULT_USER_INDEX & 0xFF) << 8) | (DEFAULT_NODE_INDEX & 0xFF)
+        probe = frames.build_vnet(VNET_ADDR_BROADCAST, source, frames.discover())
+        for _ in range(2):
+            transport.sendto(probe, ("255.255.255.255", GATEWAY_PORT))
+            await asyncio.sleep(timeout / 2)
+    except OSError as err:
+        _LOGGER.debug("Gateway discovery broadcast failed: %s", err)
+    finally:
+        transport.close()
+    return found
 
 
 class SoulissError(Exception):
@@ -94,6 +134,7 @@ class SoulissGateway:
         self._waiters: dict[int, list[asyncio.Future[MacacoFrame]]] = {}
         self._availability_callbacks: list[AvailabilityCallback] = []
         self._discovery_callbacks: list[DiscoveryCallback] = []
+        self._action_callbacks: list[ActionMessageCallback] = []
 
     # ---------------------------------------------------------------- setup
 
@@ -208,6 +249,18 @@ class SoulissGateway:
 
         return _unregister
 
+    def register_action_callback(
+        self, callback: ActionMessageCallback
+    ) -> Callable[[], None]:
+        """Subscribe to broadcast action messages published by any node."""
+        self._action_callbacks.append(callback)
+
+        def _unregister() -> None:
+            if callback in self._action_callbacks:
+                self._action_callbacks.remove(callback)
+
+        return _unregister
+
     def _set_connected(self, connected: bool) -> None:
         if connected == self.connected:
             return
@@ -262,6 +315,22 @@ class SoulissGateway:
         except FrameError as err:
             _LOGGER.debug("Dropping datagram from %s: %s", addr, err)
             return
+
+        if frame.funcode == FC_ACTION_MESSAGE:
+            # action messages are broadcast by ANY node, not just the gateway
+            _LOGGER.debug(
+                "Action message 0x%04x/0x%02x from 0x%04x (%d data bytes)",
+                frame.putin,
+                frame.startoffset,
+                frame.source,
+                len(frame.payload),
+            )
+            for action_callback in list(self._action_callbacks):
+                action_callback(
+                    frame.source, frame.putin, frame.startoffset, frame.payload
+                )
+            return
+
         if (frame.source & 0xFF) != self.dest_address:
             _LOGGER.debug(
                 "Dropping frame from foreign vNet source 0x%04x", frame.source

@@ -214,3 +214,31 @@ async def test_foreign_source_is_ignored(client: SoulissGateway) -> None:
     )
     client._handle_datagram(frame, ("127.0.0.1", 9999))
     assert client.nodes[1].slots[0].value == 0x00
+
+
+async def test_action_message_dispatch(client: SoulissGateway) -> None:
+    # action messages are broadcast by any node and bypass the source filter
+    received: list[tuple[int, int, int, bytes]] = []
+    unregister = client.register_action_callback(
+        lambda source, message, action, data: received.append(
+            (source, message, action, data)
+        )
+    )
+
+    frame = frames.build_vnet(
+        0xFFFF,
+        0x00AB,  # a foreign peer node, not the gateway
+        frames.build_macaco(
+            const.FC_ACTION_MESSAGE,
+            putin=0x1234,
+            startoffset=0x05,
+            numberof=2,
+            payload=b"\x01\x02",
+        ),
+    )
+    client._handle_datagram(frame, ("127.0.0.1", 9999))
+    assert received == [(0x00AB, 0x1234, 0x05, b"\x01\x02")]
+
+    unregister()
+    client._handle_datagram(frame, ("127.0.0.1", 9999))
+    assert len(received) == 1

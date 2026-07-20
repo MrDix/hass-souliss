@@ -11,8 +11,13 @@ devices and entities. No firmware changes required.
 Early development. Implemented:
 
 - Config flow (gateway IP, local port, user/node index), reconfigure support
+- Gateway discovery: the config flow broadcasts a vNet discovery probe and
+  offers the answering gateways as a dropdown (manual entry still possible)
 - Automatic enumeration of the node database and typicals via the gateway
 - Push state updates via MaCaco subscription (refresh handled automatically)
+- Action messages: broadcast events published by any node
+  (`Souliss_Publish` / `Souliss_PublishData`) are fired on the Home Assistant
+  event bus as `souliss_action_message`
 - Node health monitoring and availability handling
 - Diagnostics download
 
@@ -47,7 +52,30 @@ or `button` (single ON command, e.g. a node reboot input). The integration
 reloads and replaces the entity; registry customizations of the replaced entity
 are lost. T16/T19 are always lights and T31 is always a climate entity.
 
-Planned: action-message events, gateway discovery.
+### Action message events
+
+Nodes can publish broadcast events with `Souliss_Publish(memory_map, message, action)`
+or `Souliss_PublishData(...)`. Each received event fires a `souliss_action_message`
+event on the Home Assistant bus:
+
+```yaml
+automation:
+  - alias: "Doorbell pressed"
+    triggers:
+      - trigger: event
+        event_type: souliss_action_message
+        event_data:
+          message: 0x0001
+          action: 0x01
+    actions:
+      - action: notify.mobile_app_phone
+        data:
+          message: "Ding dong"
+```
+
+Event data: `gateway` (configured host), `source_address` (vNet address of the
+publishing node), `message` (16-bit id), `action` (8-bit id), `data` (list of
+optional payload bytes).
 
 ## Installation
 

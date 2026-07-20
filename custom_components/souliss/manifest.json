@@ -9,5 +9,5 @@
   "issue_tracker": "https://github.com/MrDix/hass-souliss/issues",
   "loggers": ["custom_components.souliss.protocol"],
   "requirements": [],
-  "version": "0.6.0"
+  "version": "0.7.0"
 }

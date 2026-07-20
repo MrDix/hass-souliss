@@ -35,7 +35,7 @@ from .const import (
     DOMAIN,
 )
 from .helpers import DEFAULT_DOMAIN, OVERRIDABLE_DOMAINS, override_key
-from .protocol import SoulissError, SoulissGateway
+from .protocol import SoulissError, SoulissGateway, discover_gateways
 from .protocol.const import DEFAULT_LOCAL_PORT, DEFAULT_NODE_INDEX, DEFAULT_USER_INDEX
 from .protocol.gateway import SoulissBindError
 
@@ -49,14 +49,29 @@ def _int_box(minimum: int, maximum: int) -> vol.All:
     )
 
 
-STEP_USER_SCHEMA = vol.Schema(
-    {
-        vol.Required(CONF_HOST): str,
-        vol.Required(CONF_LOCAL_PORT, default=DEFAULT_LOCAL_PORT): _int_box(1024, 65535),
-        vol.Required(CONF_USER_INDEX, default=DEFAULT_USER_INDEX): _int_box(1, 100),
-        vol.Required(CONF_NODE_INDEX, default=DEFAULT_NODE_INDEX): _int_box(1, 254),
-    }
-)
+def _user_schema(discovered: list[str]) -> vol.Schema:
+    """The gateway form; discovered IPs become a dropdown with free entry."""
+    if discovered:
+        host_field = SelectSelector(
+            SelectSelectorConfig(
+                options=discovered,
+                custom_value=True,
+                mode=SelectSelectorMode.DROPDOWN,
+            )
+        )
+    else:
+        host_field = str
+    return vol.Schema(
+        {
+            vol.Required(CONF_HOST): host_field,
+            vol.Required(CONF_LOCAL_PORT, default=DEFAULT_LOCAL_PORT): _int_box(1024, 65535),
+            vol.Required(CONF_USER_INDEX, default=DEFAULT_USER_INDEX): _int_box(1, 100),
+            vol.Required(CONF_NODE_INDEX, default=DEFAULT_NODE_INDEX): _int_box(1, 254),
+        }
+    )
+
+
+STEP_USER_SCHEMA = _user_schema([])
 
 
 async def _validate(data: dict[str, Any]) -> str | None:
@@ -86,6 +101,9 @@ class SoulissConfigFlow(ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
+    def __init__(self) -> None:
+        self._discovered: list[str] = []
+
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> SoulissOptionsFlow:
@@ -104,10 +122,13 @@ class SoulissConfigFlow(ConfigFlow, domain=DOMAIN):
                     data=user_input,
                 )
             errors["base"] = error
+        else:
+            # broadcast probe so known gateways can be picked from a list
+            self._discovered = await discover_gateways()
         return self.async_show_form(
             step_id="user",
             data_schema=self.add_suggested_values_to_schema(
-                STEP_USER_SCHEMA, user_input
+                _user_schema(self._discovered), user_input
             ),
             errors=errors,
         )

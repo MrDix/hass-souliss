@@ -12,7 +12,14 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
-from .const import CONF_LOCAL_PORT, CONF_NODE_INDEX, CONF_USER_INDEX, DOMAIN, PLATFORMS
+from .const import (
+    CONF_LOCAL_PORT,
+    CONF_NODE_INDEX,
+    CONF_USER_INDEX,
+    DOMAIN,
+    EVENT_ACTION_MESSAGE,
+    PLATFORMS,
+)
 from .helpers import MODE_SELECT_DOMAINS, OVERRIDABLE_DOMAINS, slot_domain
 from .protocol import SoulissError, SoulissGateway
 from .protocol.const import DEFAULT_LOCAL_PORT, DEFAULT_NODE_INDEX, DEFAULT_USER_INDEX
@@ -37,6 +44,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: SoulissConfigEntry) -> b
 
     entry.runtime_data = gateway
     entry.async_on_unload(gateway.close)
+
+    @callback
+    def _handle_action_message(
+        source: int, message: int, action: int, data: bytes
+    ) -> None:
+        hass.bus.async_fire(
+            EVENT_ACTION_MESSAGE,
+            {
+                "gateway": entry.data[CONF_HOST],
+                "source_address": source,
+                "message": message,
+                "action": action,
+                "data": list(data),
+            },
+        )
+
+    entry.async_on_unload(gateway.register_action_callback(_handle_action_message))
 
     device_registry = dr.async_get(hass)
     device_registry.async_get_or_create(

@@ -8,6 +8,8 @@ CONF_USER_INDEX = "user_index"
 CONF_NODE_INDEX = "node_index"
 CONF_LOCAL_PORT = "local_port"
 
+EVENT_ACTION_MESSAGE = "souliss_action_message"
+
 CONF_SLOT_OVERRIDES = "slot_overrides"
 CONF_SLOT = "slot"
 CONF_ENTITY_TYPE = "entity_type"
