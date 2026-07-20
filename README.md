@@ -25,12 +25,20 @@ Early development. Implemented:
 | T16 RGB LED strip | `light` (RGB color, brightness = max channel) |
 | T18 on/off with pulse feedback | `switch` (overridable) |
 | T19 single-channel dimmable LED | `light` (brightness) |
+| T1A 8-bit digital input | 8 `binary_sensor` entities (one per input) |
 | T21/T22 motorized (shutter) | `cover` (open/close/stop) |
 | T31 temperature control | `climate` (heat/cool/off, setpoint, fan modes) |
+| T32 air conditioner | `climate` (auto/cool/dry/fan/heat, 16-30 °C, fan modes, eco preset) |
 | T41 anti-theft main | `alarm_control_panel` |
+| T42 anti-theft peer | `binary_sensor` (safety, latched until chain rearm) |
 | T51-T58 analog input | `sensor` (temperature, humidity, lux, V, A, W, hPa) |
 | T61-T68 analog setpoint | `number` |
 | node health | diagnostic `sensor` per node |
+
+Note on T32: the typical is a pass-through remote — the node forwards the
+command word to the appliance (usually via IR) and only echoes the last
+command back, so the entity state reflects the last command, not appliance
+feedback.
 
 Per-slot entity-type overrides: the integration cannot know what is wired to a
 single-slot T1n typical, so the *Configure* dialog of the hub entry lets you map
@@ -39,8 +47,7 @@ or `button` (single ON command, e.g. a node reboot input). The integration
 reloads and replaces the entity; registry customizations of the replaced entity
 are lost. T16/T19 are always lights and T31 is always a climate entity.
 
-Planned: T32 air-conditioner remote, T42 anti-theft peer, T1A 8-bit input,
-action-message events, gateway discovery.
+Planned: action-message events, gateway discovery.
 
 ## Installation
 

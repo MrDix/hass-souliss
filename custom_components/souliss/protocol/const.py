@@ -90,7 +90,7 @@ TYPICAL_EXTRA_SLOTS = {
     T16: 3,  # cmd + R + G + B
     T19: 1,  # cmd + dimmer
     T31: 4,  # cmd + measured half-float + setpoint half-float
-    T32: 4,
+    T32: 1,  # two-byte command word
     **{t: 1 for t in ANALOG_INPUT_TYPICALS},
     **{t: 1 for t in ANALOG_SETPOINT_TYPICALS},
 }
@@ -149,6 +149,34 @@ T2N_COIL_STOP = 0x03  # stopped
 T2N_STATE_CLOSE = 0x08  # closed (limit switch / timer)
 T2N_STATE_OPEN = 0x10  # open (limit switch / timer)
 T2N_NO_LIMSWITCH = 0x20  # stopped, position unknown
+
+# T32 air-conditioner command word (two bytes, 0xABCD nibble groups)
+# A-nibble flags (byte 0, high nibble); 0x0 = leave power unchanged
+T32_POWER_ON = 0x8
+T32_POWER_OFF = 0x4
+T32_IONIZER = 0x2
+T32_POWER_SAVE = 0x1  # "eco"
+# B-nibble (byte 0, low nibble): bit 3 = swirl/swing, bits 0-2 = fan code
+T32_SWIRL_BIT = 0x8
+T32_FAN_AUTO = 0x7
+T32_FAN_HIGH = 0x2
+T32_FAN_MED = 0x6
+T32_FAN_LOW = 0x5
+# C-nibble (byte 1, high nibble): function
+T32_MODE_AUTO = 0xF
+T32_MODE_COOL = 0x7
+T32_MODE_DRY = 0xB
+T32_MODE_FAN = 0x3
+T32_MODE_HEAT = 0xD
+# D-nibble (byte 1, low nibble): temperature 16-30 °C, hardware encoding
+T32_TEMP_CODES = {
+    16: 0x0F, 17: 0x07, 18: 0x0B, 19: 0x03, 20: 0x0D,
+    21: 0x05, 22: 0x09, 23: 0x01, 24: 0x0E, 25: 0x06,
+    26: 0x0A, 27: 0x02, 28: 0x0C, 29: 0x04, 30: 0x08,
+}
+
+# T42 anti-theft peer output (latched until a 0x03 rearm)
+T42_STATE_ALARM = 0x01
 
 # T4n commands
 T4N_ALARM_CMD = 0x01  # trigger the alarm

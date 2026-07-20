@@ -16,7 +16,7 @@ from .protocol import Node, Slot, SoulissGateway
 if TYPE_CHECKING:
     from . import SoulissConfigEntry
 
-SlotEntityFactory = Callable[[Node, Slot], Entity | None]
+SlotEntityFactory = Callable[[Node, Slot], Entity | list[Entity] | None]
 
 
 @callback
@@ -29,20 +29,26 @@ def async_setup_slot_entities(
 
     Peer nodes can report their typicals after connect() (e.g. while they are
     still booting); the gateway fires a discovery callback when that happens.
+    A factory may return a single entity or a list (multi-entity typicals
+    such as T1A).
     """
     gateway = entry.runtime_data
     seen: set[tuple[int, int]] = set()
 
     @callback
     def _add_node(node: Node) -> None:
-        new_entities = []
+        new_entities: list[Entity] = []
         for slot in node.slots.values():
             key = (node.index, slot.index)
             if key in seen:
                 continue
             seen.add(key)
             entity = factory(node, slot)
-            if entity is not None:
+            if entity is None:
+                continue
+            if isinstance(entity, list):
+                new_entities.extend(entity)
+            else:
                 new_entities.append(entity)
         if new_entities:
             async_add_entities(new_entities)

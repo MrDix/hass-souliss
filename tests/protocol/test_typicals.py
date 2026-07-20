@@ -5,10 +5,13 @@ from protocol import const
 from protocol.frames import decode_half_float, encode_half_float
 from protocol.typicals import (
     T31State,
+    T32State,
+    t1a_bit,
     t16_color,
     t16_set_payload,
     t19_set_payload,
     t31_setpoint_payload,
+    t32_command,
 )
 
 
@@ -108,3 +111,86 @@ def test_t31_state_short_raw() -> None:
     assert not state.system_on
     assert state.measured is None
     assert state.setpoint is None
+
+
+def test_t1a_bit() -> None:
+    raw = bytes((0b1010_0001,))
+    assert t1a_bit(raw, 0)
+    assert not t1a_bit(raw, 1)
+    assert t1a_bit(raw, 5)
+    assert t1a_bit(raw, 7)
+    assert not t1a_bit(b"", 0)
+    with pytest.raises(ValueError):
+        t1a_bit(raw, 8)
+
+
+def test_t32_command_word_layout() -> None:
+    word = t32_command(
+        power=True,
+        mode=const.T32_MODE_COOL,
+        fan=const.T32_FAN_HIGH,
+        temperature=21,
+    )
+    # A=on(0x8), B=fan high(0x2), C=cool(0x7), D=21°C code(0x05)
+    assert word == bytes((0x82, 0x75))
+
+    off = t32_command(
+        power=False,
+        mode=const.T32_MODE_COOL,
+        fan=const.T32_FAN_HIGH,
+        temperature=21,
+    )
+    assert off[0] >> 4 == const.T32_POWER_OFF
+
+    neutral = t32_command(
+        power=None,
+        mode=const.T32_MODE_HEAT,
+        fan=const.T32_FAN_AUTO,
+        temperature=30,
+        eco=True,
+        swirl=True,
+    )
+    assert neutral[0] >> 4 == const.T32_POWER_SAVE
+    assert neutral[0] & const.T32_SWIRL_BIT
+    assert neutral[0] & 0x7 == const.T32_FAN_AUTO
+    assert neutral[1] == (const.T32_MODE_HEAT << 4) | const.T32_TEMP_CODES[30]
+
+    with pytest.raises(ValueError):
+        t32_command(
+            power=True, mode=const.T32_MODE_AUTO, fan=const.T32_FAN_AUTO,
+            temperature=15,
+        )
+
+
+def test_t32_roundtrip() -> None:
+    word = t32_command(
+        power=True,
+        mode=const.T32_MODE_HEAT,
+        fan=const.T32_FAN_LOW,
+        temperature=26,
+        eco=True,
+    )
+    state = T32State.from_raw(word)
+    assert state.power_on
+    assert state.eco
+    assert not state.swirl
+    assert state.fan_code == const.T32_FAN_LOW
+    assert state.mode_code == const.T32_MODE_HEAT
+    assert state.temperature == 26
+
+
+def test_t32_state_off_and_short() -> None:
+    off_echo = t32_command(
+        power=False, mode=const.T32_MODE_COOL, fan=const.T32_FAN_AUTO,
+        temperature=24,
+    )
+    assert not T32State.from_raw(off_echo).power_on
+    blank = T32State.from_raw(b"\x00")
+    assert not blank.power_on
+    assert blank.temperature is None
+
+
+def test_t32_temp_codes_complete() -> None:
+    assert sorted(const.T32_TEMP_CODES) == list(range(16, 31))
+    # hardware encoding is a bijection
+    assert len(set(const.T32_TEMP_CODES.values())) == 15
